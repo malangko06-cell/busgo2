@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>네이버 지도 연동</title>
+  <title>버스 노선도</title>
   <style>
     body {
       margin: 0;
@@ -14,19 +14,186 @@
       width: 100%;
       height: 100vh;
     }
+
+    .route-buttons {
+      position: absolute;
+      top: 20px;
+      left: 20px;
+      z-index: 1000;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      max-width: min(640px, calc(100vw - 40px));
+      background: rgba(255, 255, 255, 0.95);
+      padding: 12px;
+      border-radius: 12px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    }
+
+    .route-button {
+      border: 1px solid #d0d7de;
+      background: #fff;
+      border-radius: 999px;
+      padding: 8px 14px;
+      font-size: 14px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    .route-button.active {
+      color: #fff;
+      background: #2db400;
+      border-color: #2db400;
+    }
   </style>
 </head>
 <body>
+  <div class="route-buttons" id="routeButtons"></div>
   <div id="map"></div>
 
-  <!-- 네이버 지도 API 불러오기 -->
+  <!-- 네이버 지도 API -->
   <script src="https://oapi.map.naver.com/openapi/v3/maps.js?ncpKeyId=eb3pj5qpk6"></script>
 
+  <!-- CSV 읽기용 라이브러리 -->
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+
   <script>
+    const ROUTES = [
+      { key: "1711", label: "1711", routeId: "100100185", color: "#2DB400" },
+      { key: "110B", label: "110B", routeId: "100100015", color: "#1D4ED8" },
+      { key: "163", label: "163", routeId: "100100032", color: "#1D4ED8" },
+      { key: "1020", label: "1020", routeId: "100100131", color: "#2DB400" },
+      { key: "7211", label: "7211", routeId: "100100344", color: "#2DB400" },
+      { key: "110A", label: "110A", routeId: "100100016", color: "#1D4ED8" },
+      { key: "N31", label: "N31", routeId: "104000011", color: "#111827" },
+      { key: "1116", label: "1116", routeId: "107000001", color: "#2DB400" },
+      { key: "1213", label: "1213", routeId: "100100175", color: "#2DB400" },
+      { key: "8111", label: "8111", routeId: "107000009", color: "#2DB400" }
+    ];
+
+    const routeMap = new Map(ROUTES.map(route => [route.key, route]));
+    const routeButtonsEl = document.getElementById("routeButtons");
+
     const map = new naver.maps.Map('map', {
       center: new naver.maps.LatLng(37.6110, 126.9973),
-      zoom: 15
+      zoom: 13
     });
+
+    let currentPolyline = null;
+    let csvDataPromise = null;
+
+    function loadCSV(filePath) {
+      return new Promise((resolve, reject) => {
+        Papa.parse(filePath, {
+          download: true,
+          header: true,
+          complete: (results) => resolve(results.data),
+          error: (error) => reject(error)
+        });
+      });
+    }
+
+    function loadRouteData() {
+      if (!csvDataPromise) {
+        csvDataPromise = Promise.all([
+          loadCSV("TBIS_MS_STTN.csv"),
+          loadCSV("TBIS_MS_ROUTE_NODE.csv")
+        ]);
+      }
+
+      return csvDataPromise;
+    }
+
+    function renderButtons(activeRouteKey) {
+      routeButtonsEl.innerHTML = "";
+
+      ROUTES.forEach(route => {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.textContent = route.label;
+        button.className = "route-button";
+
+        if (route.key === activeRouteKey) {
+          button.classList.add("active");
+          button.style.backgroundColor = route.color;
+          button.style.borderColor = route.color;
+        }
+
+        button.addEventListener("click", () => {
+          drawRoute(route.key);
+        });
+
+        routeButtonsEl.appendChild(button);
+      });
+    }
+
+    async function drawRoute(routeKey) {
+      const route = routeMap.get(routeKey);
+
+      if (!route) {
+        alert("선택한 노선 정보를 찾지 못했어요.");
+        return;
+      }
+
+      try {
+        renderButtons(route.key);
+
+        const [stations, routeNodes] = await loadRouteData();
+
+        // 선택한 노선에 해당하는 정류장만 고르기
+        const filteredNodes = routeNodes
+          .filter(node => String(node.ROUTE_ID) === route.routeId)
+          .sort((a, b) => Number(a.STTN_SN) - Number(b.STTN_SN));
+
+        const stationMap = new Map();
+        stations.forEach(station => {
+          stationMap.set(String(station.STTN_ID), station);
+        });
+
+        const path = filteredNodes
+          .map(node => {
+            const station = stationMap.get(String(node.STTN_ID));
+            if (!station) return null;
+
+            const lng = parseFloat(station.CRDNT_X);
+            const lat = parseFloat(station.CRDNT_Y);
+
+            if (isNaN(lat) || isNaN(lng)) return null;
+
+            return new naver.maps.LatLng(lat, lng);
+          })
+          .filter(Boolean);
+
+        if (path.length === 0) {
+          alert(`${route.label} 노선 좌표를 찾지 못했어요.`);
+          return;
+        }
+
+        if (currentPolyline) {
+          currentPolyline.setMap(null);
+        }
+
+        currentPolyline = new naver.maps.Polyline({
+          map: map,
+          path: path,
+          strokeColor: route.color,
+          strokeWeight: 5,
+          strokeOpacity: 0.8
+        });
+
+        const bounds = new naver.maps.LatLngBounds(path[0], path[0]);
+        path.forEach(point => bounds.extend(point));
+
+        map.fitBounds(bounds);
+
+      } catch (error) {
+        console.error(error);
+        alert(`${route.label} 노선도를 불러오는 중 오류가 났어요.`);
+      }
+    }
+
+    renderButtons("1711");
+    drawRoute("1711");
   </script>
 </body>
 </html>
