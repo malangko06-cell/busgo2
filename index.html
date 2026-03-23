@@ -20,11 +20,12 @@
       top: 20px;
       left: 20px;
       z-index: 1000;
-      background: rgba(255, 255, 255, 0.96);
+      background: rgba(255, 255, 255, 1);
       padding: 12px 16px;
       border-radius: 14px;
-      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-      font-size: 22px;
+      border: 1px solid rgba(17, 24, 39, 0.28);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.50);
+      font-size: 24px;
       font-weight: 900;
       color: #111827;
       letter-spacing: -0.02em;
@@ -40,10 +41,11 @@
       justify-content: flex-end;
       gap: 8px;
       max-width: min(640px, calc(100vw - 40px));
-      background: rgba(255, 255, 255, 0.95);
+      background: rgba(255, 255, 255, 1);
       padding: 12px;
       border-radius: 12px;
-      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+      border: 1px solid rgba(17, 24, 39, 0.28);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.50);
     }
 
     .route-button {
@@ -67,20 +69,21 @@
       top: 96px;
       left: 20px;
       z-index: 1000;
-      min-width: 220px;
-      max-width: min(320px, calc(100vw - 40px));
+      min-width: 250px;
+      max-width: min(420px, calc(100vw - 40px));
       max-height: min(560px, calc(100vh - 140px));
-      background: rgba(255, 255, 255, 0.95);
+      background: rgba(255, 255, 255, 1);
       padding: 14px;
       border-radius: 14px;
-      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+      border: 1px solid rgba(17, 24, 39, 0.28);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.50);
       display: flex;
       flex-direction: column;
     }
 
     .place-list-title {
       margin: 0 0 10px;
-      font-size: 15px;
+      font-size: 18px;
       font-weight: 800;
       color: #111827;
     }
@@ -94,6 +97,10 @@
     }
 
     .place-toggle {
+      position: absolute;
+      top: 96px;
+      right: 20px;
+      z-index: 1000;
       border: 1px solid #d0d7de;
       background: #ffffff;
       border-radius: 999px;
@@ -102,6 +109,7 @@
       font-weight: 800;
       color: #1f2937;
       cursor: pointer;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.50);
     }
 
     .place-toggle.active {
@@ -113,7 +121,7 @@
     .place-list-items {
       display: flex;
       flex-direction: column;
-      gap: 8px;
+      gap: 12px;
       overflow-y: auto;
       min-height: 0;
     }
@@ -121,11 +129,13 @@
     .place-item {
       display: flex;
       align-items: flex-start;
-      gap: 8px;
+      gap: 10px;
       font-size: 16px;
       font-weight: 700;
       color: #1f2937;
       cursor: pointer;
+      padding-top: 2px;
+      padding-left: 2px;
     }
 
     .place-text {
@@ -150,6 +160,8 @@
       height: 12px;
       border-radius: 999px;
       flex: 0 0 auto;
+      margin-top: 3px;
+      margin-left: 1px;
       box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.85), 0 0 0 1px rgba(0, 0, 0, 0.14);
     }
   </style>
@@ -157,6 +169,7 @@
 <body>
   <div class="page-title">국민대에서 버스 타고 여기까지?</div>
   <div class="route-buttons" id="routeButtons"></div>
+  <button type="button" class="place-toggle" id="placeToggle"></button>
   <div class="place-list" id="placeList"></div>
   <div id="map"></div>
 
@@ -180,6 +193,7 @@
 
     const routeMap = new Map(ROUTES.map(route => [route.key, route]));
     const routeButtonsEl = document.getElementById("routeButtons");
+    const placeToggleEl = document.getElementById("placeToggle");
     const placeListEl = document.getElementById("placeList");
     const STOP_MARKER_MIN_ZOOM = 15;
     const HIGHLIGHT_STOP_NAMES = new Set(["국민대학교앞", "국민대앞"]);
@@ -198,7 +212,8 @@
         position: { lat: 37.608062, lng: 126.972110 },
         color: "#F97316",
         shape: "diamond",
-        showInList: true
+        showInList: true,
+        meta: "미술관"
       },
       {
         name: "석파정 서울미술관",
@@ -206,7 +221,8 @@
         position: { lat: 37.594979, lng: 126.963228 },
         color: "#F97316",
         shape: "diamond",
-        showInList: true
+        showInList: true,
+        meta: "미술관"
       },
       {
         name: "무계원",
@@ -214,7 +230,8 @@
         position: { lat: 37.591995, lng: 126.963570 },
         color: "#F97316",
         shape: "diamond",
-        showInList: true
+        showInList: true,
+        meta: "전통문화공간"
       },
       {
         name: "화정박물관",
@@ -222,7 +239,8 @@
         position: { lat: 37.604735, lng: 126.965942 },
         color: "#F97316",
         shape: "diamond",
-        showInList: true
+        showInList: true,
+        meta: "박물관"
       },
       {
         name: "윤동주문학관",
@@ -230,7 +248,8 @@
         position: { lat: 37.592259, lng: 126.967119 },
         color: "#F97316",
         shape: "diamond",
-        showInList: true
+        showInList: true,
+        meta: "박물관"
       },
       {
         name: "종로구립 박노수미술관",
@@ -238,7 +257,8 @@
         position: { lat: 37.581503, lng: 126.966753 },
         color: "#F97316",
         shape: "diamond",
-        showInList: true
+        showInList: true,
+        meta: "미술관"
       },
       {
         name: "국립현대미술관 서울",
@@ -246,7 +266,8 @@
         position: { lat: 37.579634, lng: 126.980272 },
         color: "#F97316",
         shape: "diamond",
-        showInList: true
+        showInList: true,
+        meta: "미술관"
       },
       {
         name: "일민미술관",
@@ -254,7 +275,8 @@
         position: { lat: 37.569964, lng: 126.977719 },
         color: "#F97316",
         shape: "diamond",
-        showInList: true
+        showInList: true,
+        meta: "미술관"
       },
       {
         name: "대림미술관",
@@ -262,7 +284,8 @@
         position: { lat: 37.577715, lng: 126.973395 },
         color: "#F97316",
         shape: "diamond",
-        showInList: true
+        showInList: true,
+        meta: "미술관"
       },
       {
         name: "이라선",
@@ -270,7 +293,8 @@
         position: { lat: 37.577887, lng: 126.983944 },
         color: "#F97316",
         shape: "diamond",
-        showInList: true
+        showInList: true,
+        meta: "서점"
       },
       {
         name: "PDF SEOUL",
@@ -278,7 +302,8 @@
         position: { lat: 37.533521, lng: 126.989638 },
         color: "#F97316",
         shape: "diamond",
-        showInList: true
+        showInList: true,
+        meta: "서점"
       },
       {
         name: "김달진미술자료박물관",
@@ -286,7 +311,8 @@
         position: { lat: 37.600169, lng: 126.956708 },
         color: "#F97316",
         shape: "diamond",
-        showInList: true
+        showInList: true,
+        meta: "박물관"
       },
       {
         name: "현대카드 스토리지",
@@ -294,7 +320,8 @@
         position: { lat: 37.536816, lng: 127.000852 },
         color: "#F97316",
         shape: "diamond",
-        showInList: true
+        showInList: true,
+        meta: "전시관, 도서관"
       },
       {
         name: "리움미술관",
@@ -302,7 +329,8 @@
         position: { lat: 37.538001, lng: 126.999346 },
         color: "#F97316",
         shape: "diamond",
-        showInList: true
+        showInList: true,
+        meta: "미술관"
       },
       {
         name: "그라운드시소 한남",
@@ -310,7 +338,8 @@
         position: { lat: 37.536363, lng: 127.005012 },
         color: "#F97316",
         shape: "diamond",
-        showInList: true
+        showInList: true,
+        meta: "미술관"
       },
       {
         name: "대원서점",
@@ -336,7 +365,8 @@
         position: { lat: 37.640386, lng: 126.938060 },
         color: "#F97316",
         shape: "diamond",
-        showInList: true
+        showInList: true,
+        meta: "박물관"
       },
       {
         name: "한국잡지박물관",
@@ -344,7 +374,8 @@
         position: { lat: 37.519727, lng: 126.930256 },
         color: "#F97316",
         shape: "diamond",
-        showInList: true
+        showInList: true,
+        meta: "박물관"
       },
       {
         name: "서울시립미술관",
@@ -352,7 +383,8 @@
         position: { lat: 37.564111, lng: 126.973760 },
         color: "#F97316",
         shape: "diamond",
-        showInList: true
+        showInList: true,
+        meta: "미술관"
       },
       {
         name: "서울도서관",
@@ -360,7 +392,8 @@
         position: { lat: 37.566256, lng: 126.977876 },
         color: "#F97316",
         shape: "diamond",
-        showInList: true
+        showInList: true,
+        meta: "도서관"
       },
       {
         name: "교보문고 광화문점",
@@ -368,7 +401,8 @@
         position: { lat: 37.570925, lng: 126.977840 },
         color: "#F97316",
         shape: "diamond",
-        showInList: true
+        showInList: true,
+        meta: "서점, 전시관"
       },
       {
         name: "Ofr Seoul",
@@ -376,7 +410,8 @@
         position: { lat: 37.579641, lng: 126.972108 },
         color: "#F97316",
         shape: "diamond",
-        showInList: true
+        showInList: true,
+        meta: "서점"
       },
       {
         name: "더북소사이어티",
@@ -384,7 +419,8 @@
         position: { lat: 37.582295, lng: 126.969472 },
         color: "#F97316",
         shape: "diamond",
-        showInList: true
+        showInList: true,
+        meta: "서점"
       },
       {
         name: "유어마인드",
@@ -392,7 +428,8 @@
         position: { lat: 37.568364, lng: 126.930318 },
         color: "#F97316",
         shape: "diamond",
-        showInList: true
+        showInList: true,
+        meta: "서점"
       }
     ];
 
@@ -613,14 +650,7 @@
 
       placeListEl.innerHTML = `
         <div class="place-list-header">
-          <div class="place-list-title">장소 리스트</div>
-          <button
-            type="button"
-            class="place-toggle ${arePlaceMarkersVisible ? "active" : ""}"
-            id="placeToggle"
-          >
-            ${arePlaceMarkersVisible ? "마커 숨기기" : "마커 보이기"}
-          </button>
+          <div class="place-list-title">Art&Design 장소 리스트</div>
         </div>
         <div class="place-list-items">
           ${sortedPlaces.map(place => `
@@ -637,10 +667,6 @@
         </div>
       `;
 
-      document.getElementById("placeToggle").addEventListener("click", () => {
-        togglePlaceMarkers();
-      });
-
       placeListEl.querySelectorAll(".place-item").forEach(item => {
         item.addEventListener("click", () => {
           const placeName = item.dataset.placeName;
@@ -649,6 +675,11 @@
           highlightPlaceMarker(placeName);
         });
       });
+    }
+
+    function renderPlaceToggle() {
+      placeToggleEl.className = `place-toggle ${arePlaceMarkersVisible ? "active" : ""}`;
+      placeToggleEl.textContent = arePlaceMarkersVisible ? "마커 숨기기" : "마커 보이기";
     }
 
     function renderPlaceMarkers() {
@@ -699,7 +730,7 @@
     function togglePlaceMarkers() {
       arePlaceMarkersVisible = !arePlaceMarkersVisible;
       updatePlaceMarkerVisibility();
-      renderPlaceList();
+      renderPlaceToggle();
     }
 
     function highlightPlaceMarker(placeName) {
@@ -719,7 +750,7 @@
       if (!arePlaceMarkersVisible) {
         arePlaceMarkersVisible = true;
         updatePlaceMarkerVisibility();
-        renderPlaceList();
+        renderPlaceToggle();
       }
 
       placeMarker.setIcon(buildPlaceMarkerIcon(place, true));
@@ -989,7 +1020,12 @@
 
     naver.maps.Event.addListener(map, "zoom_changed", updateStopMarkerVisibility);
 
+    placeToggleEl.addEventListener("click", () => {
+      togglePlaceMarkers();
+    });
+
     renderPlaceList();
+    renderPlaceToggle();
     renderPlaceMarkers();
     renderButtons(activeRouteKey);
     drawRoute(activeRouteKey);
