@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>버스 노선도</title>
+  <title>국민대에서 버스 타고 여기까지?</title>
   <style>
     body {
       margin: 0;
@@ -15,13 +15,29 @@
       height: 100vh;
     }
 
-    .route-buttons {
+    .page-title {
       position: absolute;
       top: 20px;
       left: 20px;
       z-index: 1000;
+      background: rgba(255, 255, 255, 0.96);
+      padding: 12px 16px;
+      border-radius: 14px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+      font-size: 22px;
+      font-weight: 900;
+      color: #111827;
+      letter-spacing: -0.02em;
+    }
+
+    .route-buttons {
+      position: absolute;
+      top: 20px;
+      right: 20px;
+      z-index: 1000;
       display: flex;
       flex-wrap: wrap;
+      justify-content: flex-end;
       gap: 8px;
       max-width: min(640px, calc(100vw - 40px));
       background: rgba(255, 255, 255, 0.95);
@@ -45,10 +61,103 @@
       background: #2db400;
       border-color: #2db400;
     }
+
+    .place-list {
+      position: absolute;
+      top: 96px;
+      left: 20px;
+      z-index: 1000;
+      min-width: 220px;
+      max-width: min(320px, calc(100vw - 40px));
+      max-height: min(560px, calc(100vh - 140px));
+      background: rgba(255, 255, 255, 0.95);
+      padding: 14px;
+      border-radius: 14px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+      display: flex;
+      flex-direction: column;
+    }
+
+    .place-list-title {
+      margin: 0 0 10px;
+      font-size: 15px;
+      font-weight: 800;
+      color: #111827;
+    }
+
+    .place-list-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+
+    .place-toggle {
+      border: 1px solid #d0d7de;
+      background: #ffffff;
+      border-radius: 999px;
+      padding: 6px 10px;
+      font-size: 12px;
+      font-weight: 800;
+      color: #1f2937;
+      cursor: pointer;
+    }
+
+    .place-toggle.active {
+      background: #111827;
+      border-color: #111827;
+      color: #ffffff;
+    }
+
+    .place-list-items {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      overflow-y: auto;
+      min-height: 0;
+    }
+
+    .place-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      font-size: 16px;
+      font-weight: 700;
+      color: #1f2937;
+      cursor: pointer;
+    }
+
+    .place-text {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .place-name {
+      line-height: 1.2;
+    }
+
+    .place-meta {
+      font-size: 12px;
+      font-weight: 500;
+      color: #6b7280;
+      line-height: 1.2;
+    }
+
+    .place-swatch {
+      width: 12px;
+      height: 12px;
+      border-radius: 999px;
+      flex: 0 0 auto;
+      box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.85), 0 0 0 1px rgba(0, 0, 0, 0.14);
+    }
   </style>
 </head>
 <body>
+  <div class="page-title">국민대에서 버스 타고 여기까지?</div>
   <div class="route-buttons" id="routeButtons"></div>
+  <div class="place-list" id="placeList"></div>
   <div id="map"></div>
 
   <!-- 네이버 지도 API -->
@@ -59,28 +168,346 @@
 
   <script>
     const ROUTES = [
-      { key: "1711", label: "1711", routeId: "100100185", color: "#2DB400" },
-      { key: "110B", label: "110B", routeId: "100100015", color: "#1D4ED8" },
-      { key: "163", label: "163", routeId: "100100032", color: "#1D4ED8" },
       { key: "1020", label: "1020", routeId: "100100131", color: "#2DB400" },
+      { key: "1711", label: "1711", routeId: "100100185", color: "#2DB400" },
       { key: "7211", label: "7211", routeId: "100100344", color: "#2DB400" },
+      { key: "163", label: "163", routeId: "100100032", color: "#1D4ED8" },
+      { key: "110B", label: "110B", routeId: "100100015", color: "#1D4ED8" },
       { key: "110A", label: "110A", routeId: "100100016", color: "#1D4ED8" },
-      { key: "N31", label: "N31", routeId: "104000011", color: "#111827" },
       { key: "1116", label: "1116", routeId: "107000001", color: "#2DB400" },
-      { key: "1213", label: "1213", routeId: "100100175", color: "#2DB400" },
-      { key: "8111", label: "8111", routeId: "107000009", color: "#2DB400" }
+      { key: "1213", label: "1213", routeId: "100100175", color: "#2DB400" }
     ];
 
     const routeMap = new Map(ROUTES.map(route => [route.key, route]));
     const routeButtonsEl = document.getElementById("routeButtons");
+    const placeListEl = document.getElementById("placeList");
+    const STOP_MARKER_MIN_ZOOM = 15;
+    const HIGHLIGHT_STOP_NAMES = new Set(["국민대학교앞", "국민대앞"]);
+    const PLACES = [
+      {
+        name: "국민대학교",
+        shortLabel: "국민대",
+        position: { lat: 37.612036, lng: 126.997663 },
+        color: "#ffcc5c",
+        shape: "circle",
+        showInList: false
+      },
+      {
+        name: "서울시립 미술아카이브",
+        shortLabel: "미술아카이브",
+        position: { lat: 37.608062, lng: 126.972110 },
+        color: "#F97316",
+        shape: "diamond",
+        showInList: true
+      },
+      {
+        name: "석파정 서울미술관",
+        shortLabel: "석파정",
+        position: { lat: 37.594979, lng: 126.963228 },
+        color: "#F97316",
+        shape: "diamond",
+        showInList: true
+      },
+      {
+        name: "무계원",
+        shortLabel: "무계원",
+        position: { lat: 37.591995, lng: 126.963570 },
+        color: "#F97316",
+        shape: "diamond",
+        showInList: true
+      },
+      {
+        name: "화정박물관",
+        shortLabel: "화정박물관",
+        position: { lat: 37.604735, lng: 126.965942 },
+        color: "#F97316",
+        shape: "diamond",
+        showInList: true
+      },
+      {
+        name: "윤동주문학관",
+        shortLabel: "윤동주문학관",
+        position: { lat: 37.592259, lng: 126.967119 },
+        color: "#F97316",
+        shape: "diamond",
+        showInList: true
+      },
+      {
+        name: "종로구립 박노수미술관",
+        shortLabel: "종로구립 박노수미술관",
+        position: { lat: 37.581503, lng: 126.966753 },
+        color: "#F97316",
+        shape: "diamond",
+        showInList: true
+      },
+      {
+        name: "국립현대미술관 서울",
+        shortLabel: "국립현대미술관 서울",
+        position: { lat: 37.579634, lng: 126.980272 },
+        color: "#F97316",
+        shape: "diamond",
+        showInList: true
+      },
+      {
+        name: "일민미술관",
+        shortLabel: "일민미술관",
+        position: { lat: 37.569964, lng: 126.977719 },
+        color: "#F97316",
+        shape: "diamond",
+        showInList: true
+      },
+      {
+        name: "대림미술관",
+        shortLabel: "대림미술관",
+        position: { lat: 37.577715, lng: 126.973395 },
+        color: "#F97316",
+        shape: "diamond",
+        showInList: true
+      },
+      {
+        name: "이라선",
+        shortLabel: "이라선",
+        position: { lat: 37.577887, lng: 126.983944 },
+        color: "#F97316",
+        shape: "diamond",
+        showInList: true
+      },
+      {
+        name: "PDF SEOUL",
+        shortLabel: "PDF SEOUL",
+        position: { lat: 37.533521, lng: 126.989638 },
+        color: "#F97316",
+        shape: "diamond",
+        showInList: true
+      },
+      {
+        name: "김달진미술자료박물관",
+        shortLabel: "김달진미술자료박물관",
+        position: { lat: 37.600169, lng: 126.956708 },
+        color: "#F97316",
+        shape: "diamond",
+        showInList: true
+      },
+      {
+        name: "현대카드 스토리지",
+        shortLabel: "현대카드 스토리지",
+        position: { lat: 37.536816, lng: 127.000852 },
+        color: "#F97316",
+        shape: "diamond",
+        showInList: true
+      },
+      {
+        name: "리움미술관",
+        shortLabel: "리움미술관",
+        position: { lat: 37.538001, lng: 126.999346 },
+        color: "#F97316",
+        shape: "diamond",
+        showInList: true
+      },
+      {
+        name: "그라운드시소 한남",
+        shortLabel: "그라운드시소 한남",
+        position: { lat: 37.536363, lng: 127.005012 },
+        color: "#F97316",
+        shape: "diamond",
+        showInList: true
+      },
+      {
+        name: "대원서점",
+        shortLabel: "대원서점",
+        position: { lat: 37.605138, lng: 127.010871 },
+        color: "#F97316",
+        shape: "diamond",
+        showInList: true,
+        meta: "서점"
+      },
+      {
+        name: "사비나미술관",
+        shortLabel: "사비나미술관",
+        position: { lat: 37.630052, lng: 126.929438 },
+        color: "#F97316",
+        shape: "diamond",
+        showInList: true,
+        meta: "미술관"
+      },
+      {
+        name: "은평역사한옥박물관",
+        shortLabel: "은평역사한옥박물관",
+        position: { lat: 37.640386, lng: 126.938060 },
+        color: "#F97316",
+        shape: "diamond",
+        showInList: true
+      },
+      {
+        name: "한국잡지박물관",
+        shortLabel: "한국잡지박물관",
+        position: { lat: 37.519727, lng: 126.930256 },
+        color: "#F97316",
+        shape: "diamond",
+        showInList: true
+      },
+      {
+        name: "서울시립미술관",
+        shortLabel: "서울시립미술관",
+        position: { lat: 37.564111, lng: 126.973760 },
+        color: "#F97316",
+        shape: "diamond",
+        showInList: true
+      },
+      {
+        name: "서울도서관",
+        shortLabel: "서울도서관",
+        position: { lat: 37.566256, lng: 126.977876 },
+        color: "#F97316",
+        shape: "diamond",
+        showInList: true
+      },
+      {
+        name: "교보문고 광화문점",
+        shortLabel: "교보문고 광화문점",
+        position: { lat: 37.570925, lng: 126.977840 },
+        color: "#F97316",
+        shape: "diamond",
+        showInList: true
+      },
+      {
+        name: "Ofr Seoul",
+        shortLabel: "Ofr Seoul",
+        position: { lat: 37.579641, lng: 126.972108 },
+        color: "#F97316",
+        shape: "diamond",
+        showInList: true
+      },
+      {
+        name: "더북소사이어티",
+        shortLabel: "더북소사이어티",
+        position: { lat: 37.582295, lng: 126.969472 },
+        color: "#F97316",
+        shape: "diamond",
+        showInList: true
+      },
+      {
+        name: "유어마인드",
+        shortLabel: "유어마인드",
+        position: { lat: 37.568364, lng: 126.930318 },
+        color: "#F97316",
+        shape: "diamond",
+        showInList: true
+      }
+    ];
 
     const map = new naver.maps.Map('map', {
       center: new naver.maps.LatLng(37.6110, 126.9973),
       zoom: 13
     });
 
-    let currentPolyline = null;
+    let currentPolylines = [];
+    let currentStopMarkers = [];
+    let currentDirectionMarkers = [];
     let csvDataPromise = null;
+    let placeMarkers = [];
+    let highlightedPlaceTimeout = null;
+    let activeRouteKey = "ALL";
+    let arePlaceMarkersVisible = true;
+    let hasFittedInitialAllRoutes = false;
+    let selectedPlaceName = null;
+    const stopInfoWindow = new naver.maps.InfoWindow({
+      backgroundColor: "#ffffff",
+      borderColor: "#d0d7de",
+      anchorSize: new naver.maps.Size(10, 10)
+    });
+    const placeInfoWindow = new naver.maps.InfoWindow({
+      backgroundColor: "#ffffff",
+      borderColor: "#d0d7de",
+      anchorSize: new naver.maps.Size(10, 10)
+    });
+    const schoolPlace = PLACES.find(place => place.name === "국민대학교");
+
+    function buildPlaceMarkerIcon(place, emphasized = false) {
+      if (place.name === "국민대학교") {
+        const glow = emphasized
+          ? `0 0 0 6px ${place.color}22, 0 10px 20px rgba(15, 23, 42, 0.28)`
+          : "0 6px 16px rgba(15, 23, 42, 0.24)";
+
+        return {
+          content: `
+            <div style="position: relative; display: inline-block;">
+              <div style="
+                display: inline-flex;
+                align-items: center;
+                gap: 8px;
+                padding: 6px 10px;
+                border-radius: 999px;
+                background: ${place.color};
+                color: #111827;
+                font-size: 12px;
+                font-weight: 800;
+                white-space: nowrap;
+                border: 1px solid #111827;
+                box-shadow: ${glow};
+              ">
+                <span style="
+                  width: 8px;
+                  height: 8px;
+                  border-radius: 999px;
+                  background: #ef4444;
+                  display: inline-block;
+                  flex: 0 0 auto;
+                "></span>
+                국민대학교
+              </div>
+              <div style="
+                position: absolute;
+                left: 50%;
+                bottom: -9px;
+                width: 10px;
+                height: 10px;
+                background: ${place.color};
+                border-right: 1px solid #111827;
+                border-bottom: 1px solid #111827;
+                transform: translateX(-50%) rotate(45deg);
+                box-shadow: 4px 4px 10px rgba(15, 23, 42, 0.12);
+              "></div>
+            </div>
+          `,
+          anchor: new naver.maps.Point(40, 26)
+        };
+      }
+
+      const outerRadius = place.shape === "diamond" ? "6px" : "999px";
+      const innerRadius = place.shape === "diamond" ? "4px" : "999px";
+      const outerTransform = place.shape === "diamond" ? "rotate(45deg)" : "none";
+      const innerTransform = place.shape === "diamond" ? "rotate(45deg)" : "none";
+      const size = emphasized ? 28 : 20;
+      const inset = emphasized ? 5 : 4;
+      const glow = emphasized
+        ? `0 0 0 6px ${place.color}22, 0 10px 20px rgba(15, 23, 42, 0.28)`
+        : "0 6px 16px rgba(15, 23, 42, 0.24)";
+
+      return {
+        content: `
+          <div style="
+            width: ${size}px;
+            height: ${size}px;
+            border-radius: ${outerRadius};
+            background: linear-gradient(135deg, ${place.color}, #ffffff);
+            border: 2px solid #ffffff;
+            box-shadow: ${glow};
+            position: relative;
+            transform: ${outerTransform};
+          ">
+            <div style="
+              position: absolute;
+              inset: ${inset}px;
+              border-radius: ${innerRadius};
+              background: ${place.color};
+              transform: ${innerTransform};
+            "></div>
+          </div>
+        `,
+        anchor: new naver.maps.Point(size / 2, size / 2)
+      };
+    }
 
     function loadCSV(filePath) {
       return new Promise((resolve, reject) => {
@@ -104,8 +531,34 @@
       return csvDataPromise;
     }
 
+    function getDistanceFromSchool(place) {
+      if (!schoolPlace) return Number.POSITIVE_INFINITY;
+
+      const latDiff = place.position.lat - schoolPlace.position.lat;
+      const lngDiff = place.position.lng - schoolPlace.position.lng;
+
+      return Math.sqrt((latDiff ** 2) + (lngDiff ** 2));
+    }
+
     function renderButtons(activeRouteKey) {
       routeButtonsEl.innerHTML = "";
+
+      const allButton = document.createElement("button");
+      allButton.type = "button";
+      allButton.textContent = "전체";
+      allButton.className = "route-button";
+
+      if (activeRouteKey === "ALL") {
+        allButton.classList.add("active");
+        allButton.style.backgroundColor = "#111827";
+        allButton.style.borderColor = "#111827";
+      }
+
+      allButton.addEventListener("click", () => {
+        handleRouteButtonClick("ALL");
+      });
+
+      routeButtonsEl.appendChild(allButton);
 
       ROUTES.forEach(route => {
         const button = document.createElement("button");
@@ -120,37 +573,380 @@
         }
 
         button.addEventListener("click", () => {
-          drawRoute(route.key);
+          handleRouteButtonClick(route.key);
         });
 
         routeButtonsEl.appendChild(button);
       });
     }
 
+    function clearPolylines() {
+      currentPolylines.forEach(polyline => {
+        polyline.setMap(null);
+      });
+
+      currentPolylines = [];
+    }
+
+    function clearRouteDisplay() {
+      clearPolylines();
+      clearStopMarkers();
+      clearDirectionMarkers();
+    }
+
+    function handleRouteButtonClick(routeKey) {
+      if (activeRouteKey === routeKey) {
+        activeRouteKey = null;
+        clearRouteDisplay();
+        renderButtons(null);
+        return;
+      }
+
+      activeRouteKey = routeKey;
+      drawRoute(routeKey);
+    }
+
+    function renderPlaceList() {
+      const sortedPlaces = PLACES
+        .filter(place => place.showInList)
+        .sort((a, b) => getDistanceFromSchool(a) - getDistanceFromSchool(b));
+
+      placeListEl.innerHTML = `
+        <div class="place-list-header">
+          <div class="place-list-title">장소 리스트</div>
+          <button
+            type="button"
+            class="place-toggle ${arePlaceMarkersVisible ? "active" : ""}"
+            id="placeToggle"
+          >
+            ${arePlaceMarkersVisible ? "마커 숨기기" : "마커 보이기"}
+          </button>
+        </div>
+        <div class="place-list-items">
+          ${sortedPlaces.map(place => `
+            <div class="place-item" data-place-name="${place.name}">
+              <span class="place-swatch" style="background:${place.color};"></span>
+              <span class="place-text">
+                <span class="place-name">${place.name}</span>
+                ${place.meta && selectedPlaceName === place.name
+                  ? `<span class="place-meta">${place.meta}</span>`
+                  : ""}
+              </span>
+            </div>
+          `).join("")}
+        </div>
+      `;
+
+      document.getElementById("placeToggle").addEventListener("click", () => {
+        togglePlaceMarkers();
+      });
+
+      placeListEl.querySelectorAll(".place-item").forEach(item => {
+        item.addEventListener("click", () => {
+          const placeName = item.dataset.placeName;
+          selectedPlaceName = selectedPlaceName === placeName ? null : placeName;
+          renderPlaceList();
+          highlightPlaceMarker(placeName);
+        });
+      });
+    }
+
+    function renderPlaceMarkers() {
+      placeMarkers.forEach(marker => {
+        naver.maps.Event.clearInstanceListeners(marker);
+        marker.setMap(null);
+      });
+
+      placeMarkers = PLACES.map(place => {
+        const marker = new naver.maps.Marker({
+          position: new naver.maps.LatLng(place.position.lat, place.position.lng),
+          map: map,
+          title: place.name,
+          icon: buildPlaceMarkerIcon(place)
+        });
+
+        naver.maps.Event.addListener(marker, "mouseover", () => {
+          if (place.name === "국민대학교") {
+            return;
+          }
+
+          placeInfoWindow.setContent(`
+            <div style="padding:8px 10px; font-size:13px; font-weight:700;">
+              ${place.name}
+            </div>
+          `);
+          placeInfoWindow.open(map, marker);
+        });
+
+        naver.maps.Event.addListener(marker, "mouseout", () => {
+          placeInfoWindow.close();
+        });
+
+        return marker;
+      });
+    }
+
+    function updatePlaceMarkerVisibility() {
+      placeMarkers.forEach(marker => {
+        marker.setMap(arePlaceMarkersVisible ? map : null);
+      });
+
+      if (!arePlaceMarkersVisible) {
+        placeInfoWindow.close();
+      }
+    }
+
+    function togglePlaceMarkers() {
+      arePlaceMarkersVisible = !arePlaceMarkersVisible;
+      updatePlaceMarkerVisibility();
+      renderPlaceList();
+    }
+
+    function highlightPlaceMarker(placeName) {
+      const placeMarker = placeMarkers.find(marker => marker.getTitle() === placeName);
+      const place = PLACES.find(item => item.name === placeName);
+      if (!placeMarker || !place) return;
+
+      if (highlightedPlaceTimeout) {
+        clearTimeout(highlightedPlaceTimeout);
+      }
+
+      placeMarkers.forEach(marker => {
+        const markerPlace = PLACES.find(item => item.name === marker.getTitle());
+        marker.setIcon(buildPlaceMarkerIcon(markerPlace));
+      });
+
+      if (!arePlaceMarkersVisible) {
+        arePlaceMarkersVisible = true;
+        updatePlaceMarkerVisibility();
+        renderPlaceList();
+      }
+
+      placeMarker.setIcon(buildPlaceMarkerIcon(place, true));
+      map.panTo(placeMarker.getPosition());
+      placeInfoWindow.setContent(`
+        <div style="padding:8px 10px; font-size:13px; font-weight:700;">
+          ${place.name}
+        </div>
+      `);
+      placeInfoWindow.open(map, placeMarker);
+
+      highlightedPlaceTimeout = setTimeout(() => {
+        placeMarker.setIcon(buildPlaceMarkerIcon(place));
+      }, 1800);
+    }
+
+    function clearStopMarkers() {
+      currentStopMarkers.forEach(marker => {
+        naver.maps.Event.clearInstanceListeners(marker);
+        marker.setMap(null);
+      });
+
+      currentStopMarkers = [];
+      stopInfoWindow.close();
+    }
+
+    function clearDirectionMarkers() {
+      currentDirectionMarkers.forEach(marker => {
+        marker.setMap(null);
+      });
+
+      currentDirectionMarkers = [];
+    }
+
+    function updateStopMarkerVisibility() {
+      const shouldShowStops = map.getZoom() >= STOP_MARKER_MIN_ZOOM;
+
+      currentStopMarkers.forEach(marker => {
+        marker.setMap(shouldShowStops ? map : null);
+      });
+
+      currentDirectionMarkers.forEach(marker => {
+        marker.setMap(shouldShowStops ? map : null);
+      });
+
+      if (!shouldShowStops) {
+        stopInfoWindow.close();
+      }
+    }
+
+    function createStopMarkers(stops, routeColor) {
+      clearStopMarkers();
+
+      currentStopMarkers = stops.map(stop => {
+        const isHighlightStop = HIGHLIGHT_STOP_NAMES.has(stop.name);
+        const marker = new naver.maps.Marker({
+          position: stop.position,
+          map: null,
+          title: stop.name,
+          icon: {
+            content: `
+              <div style="
+                width: ${isHighlightStop ? 16 : 10}px;
+                height: ${isHighlightStop ? 16 : 10}px;
+                border-radius: 999px;
+                background: ${isHighlightStop ? "#f97316" : routeColor};
+                border: ${isHighlightStop ? 3 : 2}px solid #ffffff;
+                box-shadow: 0 0 0 ${isHighlightStop ? 2 : 1}px rgba(0, 0, 0, 0.18);
+              "></div>
+            `,
+            anchor: new naver.maps.Point(
+              isHighlightStop ? 8 : 5,
+              isHighlightStop ? 8 : 5
+            )
+          }
+        });
+
+        naver.maps.Event.addListener(marker, "mouseover", () => {
+          if (map.getZoom() < STOP_MARKER_MIN_ZOOM) {
+            return;
+          }
+
+          stopInfoWindow.setContent(`
+            <div style="padding:8px 10px; font-size:13px; font-weight:700;">
+              ${stop.name}
+            </div>
+          `);
+          stopInfoWindow.open(map, marker);
+        });
+
+        naver.maps.Event.addListener(marker, "mouseout", () => {
+          stopInfoWindow.close();
+        });
+
+        return marker;
+      });
+
+      updateStopMarkerVisibility();
+    }
+
+    function createDirectionMarkers(path, routeColor) {
+      clearDirectionMarkers();
+
+      currentDirectionMarkers = path.slice(0, -1).map((point, index) => {
+        const nextPoint = path[index + 1];
+        const lat1 = point.y;
+        const lng1 = point.x;
+        const lat2 = nextPoint.y;
+        const lng2 = nextPoint.x;
+        const angle = Math.atan2(lat1 - lat2, lng2 - lng1) * 180 / Math.PI;
+        const midPoint = new naver.maps.LatLng(
+          (lat1 + lat2) / 2,
+          (lng1 + lng2) / 2
+        );
+
+        return new naver.maps.Marker({
+          position: midPoint,
+          map: null,
+          clickable: false,
+          icon: {
+            content: `
+              <div style="
+                color: ${routeColor};
+                font-size: 16px;
+                font-weight: 900;
+                transform: translate(-50%, -50%) rotate(${angle}deg);
+                text-shadow:
+                  -1px -1px 0 #ffffff,
+                  1px -1px 0 #ffffff,
+                  -1px 1px 0 #ffffff,
+                  1px 1px 0 #ffffff;
+              ">▶</div>
+            `,
+            anchor: new naver.maps.Point(0, 0)
+          }
+        });
+      });
+
+      updateStopMarkerVisibility();
+    }
+
     async function drawRoute(routeKey) {
       const route = routeMap.get(routeKey);
+      const isAllRoutes = routeKey === "ALL";
 
-      if (!route) {
+      if (!isAllRoutes && !route) {
         alert("선택한 노선 정보를 찾지 못했어요.");
         return;
       }
 
       try {
-        renderButtons(route.key);
+        renderButtons(isAllRoutes ? "ALL" : route.key);
 
         const [stations, routeNodes] = await loadRouteData();
-
-        // 선택한 노선에 해당하는 정류장만 고르기
-        const filteredNodes = routeNodes
-          .filter(node => String(node.ROUTE_ID) === route.routeId)
-          .sort((a, b) => Number(a.STTN_SN) - Number(b.STTN_SN));
 
         const stationMap = new Map();
         stations.forEach(station => {
           stationMap.set(String(station.STTN_ID), station);
         });
 
-        const path = filteredNodes
+        clearRouteDisplay();
+
+        if (isAllRoutes) {
+          let allRoutesBounds = null;
+
+          ROUTES.forEach(currentRoute => {
+            const path = routeNodes
+              .filter(node => String(node.ROUTE_ID) === currentRoute.routeId)
+              .sort((a, b) => Number(a.STTN_SN) - Number(b.STTN_SN))
+              .map(node => {
+                const station = stationMap.get(String(node.STTN_ID));
+                if (!station) return null;
+
+                const lng = parseFloat(station.CRDNT_X);
+                const lat = parseFloat(station.CRDNT_Y);
+
+                if (isNaN(lat) || isNaN(lng)) return null;
+
+                return new naver.maps.LatLng(lat, lng);
+              })
+              .filter(Boolean);
+
+            if (path.length > 0) {
+              if (!allRoutesBounds) {
+                allRoutesBounds = new naver.maps.LatLngBounds(path[0], path[0]);
+              }
+
+              path.forEach(point => {
+                allRoutesBounds.extend(point);
+              });
+
+              const polyline = new naver.maps.Polyline({
+                map: map,
+                path: path,
+                strokeColor: currentRoute.color,
+                strokeWeight: 4,
+                strokeOpacity: 1,
+                clickable: true
+              });
+
+              naver.maps.Event.addListener(polyline, "click", () => {
+                handleRouteButtonClick(currentRoute.key);
+              });
+
+              currentPolylines.push(polyline);
+            }
+          });
+
+          if (!hasFittedInitialAllRoutes && allRoutesBounds) {
+            map.fitBounds(allRoutesBounds, {
+              top: 44,
+              right: 44,
+              bottom: 44,
+              left: 44
+            });
+            map.setZoom(map.getZoom() + 1, false);
+            hasFittedInitialAllRoutes = true;
+          }
+
+          return;
+        }
+
+        const filteredNodes = routeNodes
+          .filter(node => String(node.ROUTE_ID) === route.routeId)
+          .sort((a, b) => Number(a.STTN_SN) - Number(b.STTN_SN));
+
+        const routeStops = filteredNodes
           .map(node => {
             const station = stationMap.get(String(node.STTN_ID));
             if (!station) return null;
@@ -160,31 +956,30 @@
 
             if (isNaN(lat) || isNaN(lng)) return null;
 
-            return new naver.maps.LatLng(lat, lng);
+            return {
+              name: station.STTN_NM,
+              position: new naver.maps.LatLng(lat, lng)
+            };
           })
           .filter(Boolean);
+
+        const path = routeStops.map(stop => stop.position);
 
         if (path.length === 0) {
           alert(`${route.label} 노선 좌표를 찾지 못했어요.`);
           return;
         }
 
-        if (currentPolyline) {
-          currentPolyline.setMap(null);
-        }
-
-        currentPolyline = new naver.maps.Polyline({
+        currentPolylines.push(new naver.maps.Polyline({
           map: map,
           path: path,
           strokeColor: route.color,
           strokeWeight: 5,
-          strokeOpacity: 0.8
-        });
+          strokeOpacity: 0.7
+        }));
 
-        const bounds = new naver.maps.LatLngBounds(path[0], path[0]);
-        path.forEach(point => bounds.extend(point));
-
-        map.fitBounds(bounds);
+        createStopMarkers(routeStops, route.color);
+        createDirectionMarkers(path, route.color);
 
       } catch (error) {
         console.error(error);
@@ -192,8 +987,12 @@
       }
     }
 
-    renderButtons("1711");
-    drawRoute("1711");
+    naver.maps.Event.addListener(map, "zoom_changed", updateStopMarkerVisibility);
+
+    renderPlaceList();
+    renderPlaceMarkers();
+    renderButtons(activeRouteKey);
+    drawRoute(activeRouteKey);
   </script>
 </body>
 </html>
