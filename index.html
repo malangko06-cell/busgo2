@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>국민대에서 버스 타고 여기까지?</title>
+  <title>국버여간?</title>
   <style>
     body {
       margin: 0;
@@ -167,7 +167,7 @@
   </style>
 </head>
 <body>
-  <div class="page-title">국민대에서 버스 타고 여기까지?</div>
+  <div class="page-title">국민대에서 버스 타고 여기까지 간다고?</div>
   <div class="route-buttons" id="routeButtons"></div>
   <button type="button" class="place-toggle" id="placeToggle"></button>
   <div class="place-list" id="placeList"></div>
@@ -568,15 +568,6 @@
       return csvDataPromise;
     }
 
-    function getDistanceFromSchool(place) {
-      if (!schoolPlace) return Number.POSITIVE_INFINITY;
-
-      const latDiff = place.position.lat - schoolPlace.position.lat;
-      const lngDiff = place.position.lng - schoolPlace.position.lng;
-
-      return Math.sqrt((latDiff ** 2) + (lngDiff ** 2));
-    }
-
     function renderButtons(activeRouteKey) {
       routeButtonsEl.innerHTML = "";
 
@@ -643,10 +634,14 @@
       drawRoute(routeKey);
     }
 
-    function renderPlaceList() {
+    function renderPlaceList(options = {}) {
+      const previousItemsEl = placeListEl.querySelector(".place-list-items");
+      const previousScrollTop = options.preserveScroll && previousItemsEl
+        ? previousItemsEl.scrollTop
+        : 0;
       const sortedPlaces = PLACES
         .filter(place => place.showInList)
-        .sort((a, b) => getDistanceFromSchool(a) - getDistanceFromSchool(b));
+        .sort((a, b) => b.position.lat - a.position.lat);
 
       placeListEl.innerHTML = `
         <div class="place-list-header">
@@ -671,10 +666,17 @@
         item.addEventListener("click", () => {
           const placeName = item.dataset.placeName;
           selectedPlaceName = selectedPlaceName === placeName ? null : placeName;
-          renderPlaceList();
+          renderPlaceList({ preserveScroll: true });
           highlightPlaceMarker(placeName);
         });
       });
+
+      if (options.preserveScroll) {
+        const itemsEl = placeListEl.querySelector(".place-list-items");
+        if (itemsEl) {
+          itemsEl.scrollTop = previousScrollTop;
+        }
+      }
     }
 
     function renderPlaceToggle() {
@@ -719,7 +721,8 @@
 
     function updatePlaceMarkerVisibility() {
       placeMarkers.forEach(marker => {
-        marker.setMap(arePlaceMarkersVisible ? map : null);
+        const isSchoolMarker = marker.getTitle() === "국민대학교";
+        marker.setMap(isSchoolMarker || arePlaceMarkersVisible ? map : null);
       });
 
       if (!arePlaceMarkersVisible) {
